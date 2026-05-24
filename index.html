@@ -724,7 +724,7 @@
         this.ty = this.ay;                   // tail y
 
         // Speed: px per frame so aircraft crosses ~3× max(W,H) over crossSecs
-        const crossSecs = 100 + Math.random() * 90;
+        const crossSecs = 280 + Math.random() * 200;
         this.spd       = (entry * 3) / (crossSecs * 60);
         this.totalDist = entry * 3;
         this.dist      = 0;
