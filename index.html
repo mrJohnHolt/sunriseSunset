@@ -402,16 +402,13 @@
       to   { transform: translateX(-130vw); }
     }
 
-    /* ─── Contrail layer ─── */
-    #contrail-layer {
+    /* ─── Contrail canvas ─── */
+    #contrail-canvas {
       position: fixed;
       inset: 0;
       z-index: 5;
       pointer-events: none;
-      overflow: hidden;
     }
-
-    /* contrail lines are animated entirely via JS transitions — no keyframes needed */
 
     /* ─── Aircraft window vignette ─── */
     #window-vignette {
@@ -460,7 +457,7 @@
   <div id="sky"></div>
   <div id="stars"></div>
   <div id="cloud-layer"></div>
-  <div id="contrail-layer"></div>
+  <canvas id="contrail-canvas"></canvas>
   <div id="grain"></div>
   <div id="window-vignette"></div>
 
@@ -676,62 +673,127 @@
       }
     })();
 
-    // ── Aircraft contrails (twin engine trails) ──────────────
-    function spawnAircraft() {
-      const layer = document.getElementById('contrail-layer');
-      if (!layer) return;
+    // ── Aircraft contrails — canvas-based twin engine trails ──
+    const cCv = document.getElementById('contrail-canvas');
+    const cCx = cCv.getContext('2d');
 
-      const goRight   = Math.random() > 0.5;
-      const y         = 5  + Math.random() * 50;   // vertical % (top 55%)
-      const ang       = -4 + Math.random() * 8;    // slight diagonal
-      const sep       = 7  + Math.random() * 9;    // px gap between the two engine trails
-      const crossTime = 90 + Math.random() * 80;   // secs for trail to grow across 120vw
-      const holdTime  = 15 + Math.random() * 35;   // secs trail lingers after aircraft exits
-      const dispTime  = 55 + Math.random() * 65;   // secs to blur & fade away
-      const op        = (0.6 + Math.random() * 0.35).toFixed(2);
+    function resizeCC() {
+      cCv.width  = window.innerWidth;
+      cCv.height = window.innerHeight;
+    }
+    resizeCC();
+    window.addEventListener('resize', resizeCC);
 
-      // Opaque at aircraft end, transparent at old tail end
-      const bg = goRight
-        ? `linear-gradient(to left,  rgba(255,255,255,${op}) 0%, rgba(255,255,255,${op}) 70%, rgba(255,255,255,.07) 93%, transparent 100%)`
-        : `linear-gradient(to right, rgba(255,255,255,${op}) 0%, rgba(255,255,255,${op}) 70%, rgba(255,255,255,.07) 93%, transparent 100%)`;
+    const _contrails = [];
+    let _lastSpawn   = -1e9;
+    const _spawnGap  = 38000; // ms between new aircraft
 
-      [-sep / 2, sep / 2].forEach(yOff => {
-        const el = document.createElement('div');
-        el.style.cssText = [
-          'position:absolute',
-          `top:calc(${y}% + ${yOff}px)`,
-          goRight ? 'left:0' : 'right:0',   // anchor at the tail end
-          'width:0',
-          'height:1.5px',
-          'border-radius:1px',
-          `transform:rotate(${ang}deg)`,
-          `background:${bg}`,
-          'will-change:width,opacity,filter',
-        ].join(';');
-        layer.appendChild(el);
+    class Aircraft {
+      constructor() {
+        const W = cCv.width, H = cCv.height;
 
-        // Two rAF ticks ensure initial style is committed before transition fires
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-          el.style.transition = `width ${crossTime}s linear`;
-          el.style.width = '120vw';   // grows off the far edge of the screen
+        // Steep diagonal angle — 25–80° from horizontal, random sign
+        const sign = Math.random() > 0.5 ? 1 : -1;
+        const deg  = 25 + Math.random() * 55;
+        const rad  = sign * deg * Math.PI / 180;
 
-          // Aircraft has exited — trail lingers then disperses
-          setTimeout(() => {
-            el.style.transition = `opacity ${dispTime}s ease-in, filter ${dispTime}s ease-in`;
-            el.style.opacity = '0';
-            el.style.filter  = 'blur(8px)';
-            setTimeout(() => el.remove(), dispTime * 1000 + 500);
-          }, (crossTime + holdTime) * 1000);
-        }));
-      });
+        // Direction of travel (screen coords: Y increases downward)
+        this.dx =  Math.cos(rad);   // rightward
+        this.dy = -Math.sin(rad);   // upward is negative in screen Y
 
-      // Schedule next aircraft
-      setTimeout(spawnAircraft, 30000 + Math.random() * 50000);
+        // Perpendicular to flight path (for engine offset)
+        this.px = -this.dy;
+        this.py =  this.dx;
+
+        // A random point on screen the flight path passes through
+        this.cx = W * (0.1 + Math.random() * 0.8);
+        this.cy = H * (0.05 + Math.random() * 0.6);
+
+        // Aircraft starts well off-screen behind the crossing point
+        const entry = Math.max(W, H) * 1.2;
+        this.ax = this.cx - this.dx * entry; // aircraft x (head)
+        this.ay = this.cy - this.dy * entry; // aircraft y (head)
+        this.tx = this.ax;                   // tail x (fixed — stays where aircraft started)
+        this.ty = this.ay;                   // tail y
+
+        // Speed: px per frame so aircraft crosses ~3× max(W,H) over crossSecs
+        const crossSecs = 100 + Math.random() * 90;
+        this.spd       = (entry * 3) / (crossSecs * 60);
+        this.totalDist = entry * 3;
+        this.dist      = 0;
+
+        // Engine spacing: perpendicular offset between the two trails
+        this.sep = 4 + Math.random() * 5; // px
+
+        // Opacity & phases
+        this.maxOp = 0.62 + Math.random() * 0.33;
+        this.op    = this.maxOp;
+        this.lw    = 1.5;
+        this.phase = 'grow';
+        this.ft    = 0;
+        this.linger  = (15 + Math.random() * 35) * 60; // frames to hold
+        this.disperseF  = (55 + Math.random() * 65) * 60; // frames to disperse
+      }
+
+      step() {
+        if (this.phase === 'grow') {
+          this.ax   += this.dx * this.spd;
+          this.ay   += this.dy * this.spd;
+          this.dist += this.spd;
+          if (this.dist >= this.totalDist) { this.phase = 'linger'; this.ft = 0; }
+        } else if (this.phase === 'linger') {
+          if (++this.ft >= this.linger) { this.phase = 'disperse'; this.ft = 0; }
+        } else if (this.phase === 'disperse') {
+          const p   = ++this.ft / this.disperseF;
+          this.op   = this.maxOp * (1 - p);
+          this.lw   = 1.5 + p * 7; // widens as trail disperses
+          if (this.ft >= this.disperseF) this.phase = 'done';
+        }
+      }
+
+      draw(ctx) {
+        if (this.op < 0.01) return;
+        [-this.sep / 2, this.sep / 2].forEach(s => {
+          const ox = this.px * s, oy = this.py * s;
+          // Gradient: transparent at tail → opaque at aircraft head (freshest)
+          const g = ctx.createLinearGradient(
+            this.tx + ox, this.ty + oy,
+            this.ax + ox, this.ay + oy
+          );
+          g.addColorStop(0,    `rgba(255,255,255,0)`);
+          g.addColorStop(0.30, `rgba(255,255,255,${+(this.op * 0.12).toFixed(3)})`);
+          g.addColorStop(0.70, `rgba(255,255,255,${+(this.op * 0.72).toFixed(3)})`);
+          g.addColorStop(0.92, `rgba(255,255,255,${+this.op.toFixed(3)})`);
+          g.addColorStop(1,    `rgba(255,255,255,${+this.op.toFixed(3)})`);
+          ctx.beginPath();
+          ctx.moveTo(this.tx + ox, this.ty + oy);
+          ctx.lineTo(this.ax + ox, this.ay + oy);
+          ctx.strokeStyle = g;
+          ctx.lineWidth   = this.lw;
+          ctx.lineCap     = 'butt';
+          ctx.stroke();
+        });
+      }
     }
 
-    // Seed two aircraft at staggered times
-    spawnAircraft();
-    setTimeout(spawnAircraft, 12000 + Math.random() * 18000);
+    function rafContrails(ts) {
+      cCx.clearRect(0, 0, cCv.width, cCv.height);
+      if (ts - _lastSpawn > _spawnGap) {
+        _contrails.push(new Aircraft());
+        _lastSpawn = ts;
+      }
+      for (let i = _contrails.length - 1; i >= 0; i--) {
+        _contrails[i].step();
+        _contrails[i].draw(cCx);
+        if (_contrails[i].phase === 'done') _contrails.splice(i, 1);
+      }
+      requestAnimationFrame(rafContrails);
+    }
+
+    // Seed and start
+    _contrails.push(new Aircraft());
+    setTimeout(() => _contrails.push(new Aircraft()), 10000 + Math.random() * 12000);
+    requestAnimationFrame(rafContrails);
 
     // ── Main update ──────────────────────────────────────────
     function update() {
