@@ -6,7 +6,7 @@
   <title>Lancashire Light — Sunrise & Sunset</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -17,6 +17,11 @@
       --cream: #F2E8D5;
       --cream-muted: rgba(242, 232, 213, 0.45);
       --cream-faint: rgba(242, 232, 213, 0.2);
+
+      --hud:       #39FF8C;
+      --hud-mid:   rgba(57, 255, 140, 0.5);
+      --hud-dim:   rgba(57, 255, 140, 0.22);
+      --hud-glow:  0 0 6px rgba(57,255,140,0.65), 0 0 14px rgba(57,255,140,0.28);
     }
 
     html, body {
@@ -127,9 +132,9 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 0 2rem 2rem;
-      margin-top: -2rem;
+      justify-content: flex-start;
+      padding: 1.5rem 2rem 2rem;
+      margin-top: 0;
     }
 
     #date-str {
@@ -430,6 +435,76 @@
         );
     }
 
+    /* ─── Avionics HUD ─── */
+    #avionics {
+      position: fixed;
+      inset: 0;
+      z-index: 11;
+      pointer-events: none;
+      font-family: 'Space Mono', 'Courier New', monospace;
+    }
+
+    .hud-panel {
+      position: absolute;
+      padding: 0.75rem 0.9rem;
+    }
+
+    /* Top-left: flight data */
+    .hud-tl {
+      top: 5rem;
+      left: 3rem;
+      border-left:  1px solid var(--hud-mid);
+      border-top:   1px solid var(--hud-mid);
+    }
+
+    /* Top-right: solar track */
+    .hud-tr {
+      top: 5rem;
+      right: 3rem;
+      border-right: 1px solid var(--hud-mid);
+      border-top:   1px solid var(--hud-mid);
+      text-align: right;
+    }
+
+    /* Corner tick marks — four 4px nubs on each outer corner */
+    .hud-tl::before { content:''; position:absolute; bottom:-4px; left:-1px;  width:1px; height:4px; background:var(--hud-mid); }
+    .hud-tl::after  { content:''; position:absolute; top:-1px;   right:-4px;  width:4px; height:1px; background:var(--hud-mid); }
+    .hud-tr::before { content:''; position:absolute; bottom:-4px; right:-1px; width:1px; height:4px; background:var(--hud-mid); }
+    .hud-tr::after  { content:''; position:absolute; top:-1px;   left:-4px;   width:4px; height:1px; background:var(--hud-mid); }
+
+    .hud-line {
+      font-size: 0.6rem;
+      line-height: 2;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--hud-dim);
+      white-space: nowrap;
+    }
+
+    .hud-lbl { color: var(--hud-dim); }
+
+    .hud-val {
+      color: var(--hud);
+      text-shadow: var(--hud-glow);
+      animation: hud-flicker 14s ease-in-out infinite;
+    }
+    .hud-tr .hud-val { animation-delay: -6s; }
+
+    @keyframes hud-flicker {
+      0%,92%,96%,100% { opacity: 1; }
+      93%              { opacity: 0.78; }
+      94%              { opacity: 1; }
+      95%              { opacity: 0.88; }
+    }
+
+    /* Separator tick inside panels */
+    .hud-sep {
+      height: 1px;
+      margin: 0.3rem 0;
+      background: var(--hud-dim);
+      opacity: 0.5;
+    }
+
     /* ─── Responsive ─── */
     @media (max-width: 680px) {
       header, footer { padding: 1.5rem; }
@@ -459,6 +534,25 @@
   <canvas id="contrail-canvas"></canvas>
   <div id="grain"></div>
   <div id="window-vignette"></div>
+
+  <!-- ── Avionics HUD overlay ── -->
+  <div id="avionics">
+
+    <div class="hud-panel hud-tl">
+      <div class="hud-line"><span class="hud-lbl">HDG &nbsp;</span><span class="hud-val">247°</span></div>
+      <div class="hud-line"><span class="hud-lbl">ALT &nbsp;</span><span class="hud-val">FL 350</span></div>
+      <div class="hud-sep"></div>
+      <div class="hud-line"><span class="hud-lbl">GS &nbsp;&nbsp;</span><span class="hud-val">483 KT</span></div>
+    </div>
+
+    <div class="hud-panel hud-tr">
+      <div class="hud-line"><span class="hud-lbl">SUN AZM &nbsp;</span><span class="hud-val" id="hud-azm">—</span></div>
+      <div class="hud-line"><span class="hud-lbl">ELEV &nbsp;&nbsp;&nbsp;&nbsp;</span><span class="hud-val" id="hud-elv">—</span></div>
+      <div class="hud-sep"></div>
+      <div class="hud-line"><span class="hud-lbl" id="hud-evt-lbl">EVENT &nbsp;&nbsp;</span><span class="hud-val" id="hud-evt">—</span></div>
+    </div>
+
+  </div>
 
   <div id="app">
     <header>
@@ -811,6 +905,39 @@
     setTimeout(() => _contrails.push(new Aircraft()), 15000 + Math.random() * 20000);
     requestAnimationFrame(rafContrails);
 
+    // ── Avionics HUD update ──────────────────────────────────
+    function updateHUD() {
+      const now = new Date();
+
+      // Sun position
+      const pos    = SunCalc.getPosition(now, LAT, LNG);
+      const azDeg  = ((pos.azimuth * 180 / Math.PI) + 180 + 360) % 360;
+      const elvDeg = pos.altitude * 180 / Math.PI;
+      document.getElementById('hud-azm').textContent =
+        azDeg.toFixed(0).padStart(3, '0') + '°';
+      document.getElementById('hud-elv').textContent =
+        (elvDeg >= 0 ? '+' : '') + elvDeg.toFixed(1) + '°';
+
+      // Time to next significant event
+      const T = SunCalc.getTimes(now, LAT, LNG);
+      let evtTime, evtLabel;
+      if (now < T.dawn) {
+        evtTime = T.dawn;  evtLabel = 'DAWN';
+      } else if (now < T.dusk) {
+        evtTime = T.dusk;  evtLabel = 'DUSK';
+      } else {
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        evtTime = SunCalc.getTimes(tomorrow, LAT, LNG).dawn;
+        evtLabel = 'DAWN';
+      }
+      const mins = Math.round((evtTime - now) / 60000);
+      const h = Math.floor(mins / 60), m = mins % 60;
+      document.getElementById('hud-evt-lbl').textContent =
+        evtLabel + '   ';
+      document.getElementById('hud-evt').textContent =
+        h > 0 ? `${h}H ${String(m).padStart(2,'0')}M` : `${m}M`;
+    }
+
     // ── Main update ──────────────────────────────────────────
     function update() {
       const now = new Date();
@@ -854,16 +981,20 @@
 
       // Sky
       applyColors(skyColors(now, sr, ss));
+
+      // HUD
+      updateHUD();
     }
 
     update();
     setInterval(update, 30000);
 
-    // Live clock every second
+    // Live clock + HUD every second
     setInterval(()=>{
       const now=new Date();
       document.getElementById('current-time').textContent =
         now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      updateHUD();
     }, 1000);
   </script>
 </body>
