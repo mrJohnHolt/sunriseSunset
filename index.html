@@ -392,14 +392,13 @@
 
     .cirrus-streak {
       position: absolute;
-      border-radius: 50%;
       will-change: transform;
       animation: cloud-drift var(--dur) linear var(--dly) infinite;
     }
 
     @keyframes cloud-drift {
       from { transform: translateX(0); }
-      to   { transform: translateX(-130vw); }
+      to   { transform: translateX(-250vw); }
     }
 
     /* ─── Contrail canvas ─── */
@@ -628,18 +627,18 @@
     (function makeClouds() {
       const layer = document.getElementById('cloud-layer');
 
-      // Cloud deck — large soft masses in bottom 38% (seen from above)
+      // Cloud deck — large soft masses, bottom 38%, all enter from off-screen right
       for (let i = 0; i < 14; i++) {
-        const el = document.createElement('div');
+        const el  = document.createElement('div');
         el.className = 'cloud-mass';
-        const w  = 90  + Math.random() * 240;
-        const h  = w   * (0.38 + Math.random() * 0.35);
-        const x  = Math.random() * 140 - 20;          // -20% … 120%
-        const y  = 72  + Math.random() * 24;           // 72% … 96%
-        const blur = 10 + Math.random() * 14;
-        const op = (0.52 + Math.random() * 0.38).toFixed(2);
-        const dur = (130 + Math.random() * 100).toFixed(0);
-        const dly = -(Math.random() * 130).toFixed(0); // already mid-journey
+        const w   = 90  + Math.random() * 240;
+        const h   = w   * (0.38 + Math.random() * 0.35);
+        const x   = 100 + Math.random() * 110;         // 100–210% — all off-screen right
+        const y   = 72  + Math.random() * 24;           // 72–96%
+        const blur= 10  + Math.random() * 14;
+        const op  = (0.52 + Math.random() * 0.38).toFixed(2);
+        const dur = (50  + Math.random() * 40).toFixed(0);  // 50–90s — clearly drifting
+        const dly = (-(Math.random() * +dur)).toFixed(0);   // already mid-journey at load
         el.style.cssText =
           `width:${w}px;height:${h}px;left:${x}%;top:${y}%;`
           +`background:radial-gradient(ellipse at 50% 35%,`
@@ -650,26 +649,34 @@
         layer.appendChild(el);
       }
 
-      // Cirrus streaks — thin wisps in top 42%
+      // Cirrus streaks — thin wisps, top 42%, much slower (same altitude ≈ less parallax)
+      // Wrapper handles the drift; inner div handles rotation — avoids transform conflict.
       for (let i = 0; i < 10; i++) {
-        const el = document.createElement('div');
-        el.className = 'cirrus-streak';
         const w   = 120 + Math.random() * 340;
         const h   = 2   + Math.random() * 4;
-        const x   = Math.random() * 120 - 10;
+        const x   = 100 + Math.random() * 160;         // 100–260% — all off-screen right
         const y   = 4   + Math.random() * 38;
         const ang = -10 + Math.random() * 20;
         const op  = (0.12 + Math.random() * 0.22).toFixed(2);
         const blur= (1.5 + Math.random() * 2.5).toFixed(1);
-        const dur = (220 + Math.random() * 120).toFixed(0);
-        const dly = -(Math.random() * 220).toFixed(0);
-        el.style.cssText =
-          `width:${w}px;height:${h}px;left:${x}%;top:${y}%;`
+        const dur = (150 + Math.random() * 110).toFixed(0); // 150–260s — barely drifting
+        const dly = (-(Math.random() * +dur)).toFixed(0);
+
+        // Wrapper drifts; inner element rotates (keeps transform-origin clean)
+        const wrap = document.createElement('div');
+        wrap.className = 'cirrus-streak';
+        wrap.style.cssText = `position:absolute;left:${x}%;top:${y}%;--dur:${dur}s;--dly:${dly}s;`;
+
+        const inner = document.createElement('div');
+        inner.style.cssText =
+          `width:${w}px;height:${h}px;`
           +`background:linear-gradient(to right,transparent,`
           +`rgba(255,255,255,${op}) 25%,rgba(255,255,255,${op}) 75%,transparent);`
-          +`filter:blur(${blur}px);transform:rotate(${ang}deg);transform-origin:left center;`
-          +`--dur:${dur}s;--dly:${dly}s;`;
-        layer.appendChild(el);
+          +`filter:blur(${blur}px);`
+          +`transform:rotate(${ang}deg);transform-origin:left center;`;
+
+        wrap.appendChild(inner);
+        layer.appendChild(wrap);
       }
     })();
 
