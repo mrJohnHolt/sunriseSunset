@@ -693,10 +693,10 @@
 
     const _contrails = [];
     let _lastSpawn   = -1e9;
-    const _spawnGap  = 38000; // ms between new aircraft
+    const _spawnGap  = 120000; // ms between new aircraft
 
     class Aircraft {
-      constructor() {
+      constructor(progress = 0) {
         const W = cCv.width, H = cCv.height;
 
         // Steep diagonal angle — 25–80° from horizontal, random sign
@@ -729,6 +729,14 @@
         this.totalDist = entry * 3;
         this.dist      = 0;
 
+        // Pre-advance aircraft into the visible area if starting mid-flight
+        if (progress > 0) {
+          const skip  = this.totalDist * Math.min(progress, 0.999);
+          this.dist   = skip;
+          this.ax     = this.tx + this.dx * skip;
+          this.ay     = this.ty + this.dy * skip;
+        }
+
         // Engine spacing: perpendicular offset between the two trails
         this.sep = 4 + Math.random() * 5; // px
 
@@ -738,8 +746,8 @@
         this.lw    = 1.5;
         this.phase = 'grow';
         this.ft    = 0;
-        this.linger  = (15 + Math.random() * 35) * 60; // frames to hold
-        this.disperseF  = (55 + Math.random() * 65) * 60; // frames to disperse
+        this.linger  = (120 + Math.random() * 180) * 60; // frames to hold (2–5 min)
+        this.disperseF  = (240 + Math.random() * 240) * 60; // frames to disperse (4–8 min)
       }
 
       step() {
@@ -797,9 +805,10 @@
       requestAnimationFrame(rafContrails);
     }
 
-    // Seed and start
-    _contrails.push(new Aircraft());
-    setTimeout(() => _contrails.push(new Aircraft()), 10000 + Math.random() * 12000);
+    // Seed and start — two aircraft already mid-flight so trails are visible immediately
+    _contrails.push(new Aircraft(0.30));
+    _contrails.push(new Aircraft(0.65));
+    setTimeout(() => _contrails.push(new Aircraft()), 15000 + Math.random() * 20000);
     requestAnimationFrame(rafContrails);
 
     // ── Main update ──────────────────────────────────────────
