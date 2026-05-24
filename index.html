@@ -411,13 +411,7 @@
       overflow: hidden;
     }
 
-    @keyframes contrail-life {
-      0%   { clip-path: inset(0 100% 0 0); opacity: 0; filter: blur(0px); height: 1.5px; }
-      4%   { opacity: 0.9; }
-      22%  { clip-path: inset(0 0% 0 0); }
-      62%  { opacity: 0.75; filter: blur(0.8px); height: 2px; }
-      100% { opacity: 0;   filter: blur(5px);   height: 7px; }
-    }
+    /* contrail lines are animated entirely via JS transitions — no keyframes needed */
 
     /* ─── Aircraft window vignette ─── */
     #window-vignette {
@@ -682,37 +676,62 @@
       }
     })();
 
-    // ── Contrails ────────────────────────────────────────────
-    function spawnContrail() {
+    // ── Aircraft contrails (twin engine trails) ──────────────
+    function spawnAircraft() {
       const layer = document.getElementById('contrail-layer');
-      const el    = document.createElement('div');
-      const y     = 8  + Math.random() * 50;          // 8–58% from top
-      const w     = 55 + Math.random() * 38;           // 55–93% wide
-      const x     = -5 + Math.random() * 15;           // start near left edge
-      const ang   = -5 + Math.random() * 10;           // slight diagonal
-      const op    = (0.5 + Math.random() * 0.4).toFixed(2);
-      const dur   = 110 + Math.random() * 70;          // 110–180 s lifecycle
+      if (!layer) return;
 
-      el.style.cssText =
-        `position:absolute;`
-        +`left:${x}%;top:${y}%;`
-        +`width:${w}%;height:1.5px;`
-        +`background:linear-gradient(to right,transparent,`
-        +`rgba(255,255,255,${op}) 12%,rgba(255,255,255,${op}) 85%,transparent);`
-        +`transform:rotate(${ang}deg);transform-origin:left center;`
-        +`animation:contrail-life ${dur}s ease-in-out forwards;`;
-      layer.appendChild(el);
+      const goRight   = Math.random() > 0.5;
+      const y         = 5  + Math.random() * 50;   // vertical % (top 55%)
+      const ang       = -4 + Math.random() * 8;    // slight diagonal
+      const sep       = 7  + Math.random() * 9;    // px gap between the two engine trails
+      const crossTime = 90 + Math.random() * 80;   // secs for trail to grow across 120vw
+      const holdTime  = 15 + Math.random() * 35;   // secs trail lingers after aircraft exits
+      const dispTime  = 55 + Math.random() * 65;   // secs to blur & fade away
+      const op        = (0.6 + Math.random() * 0.35).toFixed(2);
 
-      // Remove when done, schedule the next one
-      setTimeout(() => {
-        el.remove();
-        setTimeout(spawnContrail, 20000 + Math.random() * 40000);
-      }, dur * 1000 + 500);
+      // Opaque at aircraft end, transparent at old tail end
+      const bg = goRight
+        ? `linear-gradient(to left,  rgba(255,255,255,${op}) 0%, rgba(255,255,255,${op}) 70%, rgba(255,255,255,.07) 93%, transparent 100%)`
+        : `linear-gradient(to right, rgba(255,255,255,${op}) 0%, rgba(255,255,255,${op}) 70%, rgba(255,255,255,.07) 93%, transparent 100%)`;
+
+      [-sep / 2, sep / 2].forEach(yOff => {
+        const el = document.createElement('div');
+        el.style.cssText = [
+          'position:absolute',
+          `top:calc(${y}% + ${yOff}px)`,
+          goRight ? 'left:0' : 'right:0',   // anchor at the tail end
+          'width:0',
+          'height:1.5px',
+          'border-radius:1px',
+          `transform:rotate(${ang}deg)`,
+          `background:${bg}`,
+          'will-change:width,opacity,filter',
+        ].join(';');
+        layer.appendChild(el);
+
+        // Two rAF ticks ensure initial style is committed before transition fires
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          el.style.transition = `width ${crossTime}s linear`;
+          el.style.width = '120vw';   // grows off the far edge of the screen
+
+          // Aircraft has exited — trail lingers then disperses
+          setTimeout(() => {
+            el.style.transition = `opacity ${dispTime}s ease-in, filter ${dispTime}s ease-in`;
+            el.style.opacity = '0';
+            el.style.filter  = 'blur(8px)';
+            setTimeout(() => el.remove(), dispTime * 1000 + 500);
+          }, (crossTime + holdTime) * 1000);
+        }));
+      });
+
+      // Schedule next aircraft
+      setTimeout(spawnAircraft, 30000 + Math.random() * 50000);
     }
 
-    // Seed with 2 contrails staggered
-    spawnContrail();
-    setTimeout(spawnContrail, 8000 + Math.random() * 10000);
+    // Seed two aircraft at staggered times
+    spawnAircraft();
+    setTimeout(spawnAircraft, 12000 + Math.random() * 18000);
 
     // ── Main update ──────────────────────────────────────────
     function update() {
