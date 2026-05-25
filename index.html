@@ -786,39 +786,38 @@
     window.addEventListener('resize', resizeCC);
 
     const _contrails = [];
-    let _lastSpawn   = -1e9;
-    const _spawnGap  = 120000; // ms between new aircraft
+    const _TARGET_CONTRAILS = 2; // always keep this many active
 
     class Aircraft {
       constructor(progress = 0) {
         const W = cCv.width, H = cCv.height;
 
-        // Steep diagonal angle — 25–80° from horizontal, random sign
-        const sign = Math.random() > 0.5 ? 1 : -1;
-        const deg  = 25 + Math.random() * 55;
-        const rad  = sign * deg * Math.PI / 180;
+        // Full random angle: 10–80° from horizontal, random direction (left or right)
+        const goRight = Math.random() > 0.5;
+        const deg  = 10 + Math.random() * 70;
+        const rad  = deg * Math.PI / 180;
 
-        // Direction of travel (screen coords: Y increases downward)
-        this.dx =  Math.cos(rad);   // rightward
-        this.dy = -Math.sin(rad);   // upward is negative in screen Y
+        // Direction of travel — randomly left-to-right or right-to-left
+        this.dx = goRight ?  Math.cos(rad) : -Math.cos(rad);
+        this.dy = -Math.sin(rad); // always upward (negative screen-Y)
 
         // Perpendicular to flight path (for engine offset)
         this.px = -this.dy;
         this.py =  this.dx;
 
-        // A random point on screen the flight path passes through
-        this.cx = W * (0.1 + Math.random() * 0.8);
-        this.cy = H * (0.05 + Math.random() * 0.6);
+        // Random crossing point anywhere on screen
+        this.cx = W * (0.05 + Math.random() * 0.9);
+        this.cy = H * (0.05 + Math.random() * 0.85);
 
         // Aircraft starts well off-screen behind the crossing point
         const entry = Math.max(W, H) * 1.2;
-        this.ax = this.cx - this.dx * entry; // aircraft x (head)
-        this.ay = this.cy - this.dy * entry; // aircraft y (head)
-        this.tx = this.ax;                   // tail x (fixed — stays where aircraft started)
-        this.ty = this.ay;                   // tail y
+        this.ax = this.cx - this.dx * entry;
+        this.ay = this.cy - this.dy * entry;
+        this.tx = this.ax;
+        this.ty = this.ay;
 
-        // Speed: px per frame so aircraft crosses ~3× max(W,H) over crossSecs
-        const crossSecs = 560 + Math.random() * 400;
+        // Speed: fast enough to cross in 120–240 s (short, looping feel)
+        const crossSecs = 120 + Math.random() * 120;
         this.spd       = (entry * 3) / (crossSecs * 60);
         this.totalDist = entry * 3;
         this.dist      = 0;
@@ -832,16 +831,16 @@
         }
 
         // Engine spacing: perpendicular offset between the two trails
-        this.sep = 4 + Math.random() * 5; // px
+        this.sep = 3 + Math.random() * 6; // px
 
         // Opacity & phases
-        this.maxOp = 0.62 + Math.random() * 0.33;
+        this.maxOp = 0.55 + Math.random() * 0.40;
         this.op    = this.maxOp;
         this.lw    = 1.5;
         this.phase = 'grow';
         this.ft    = 0;
-        this.linger  = (120 + Math.random() * 180) * 60; // frames to hold (2–5 min)
-        this.disperseF  = (240 + Math.random() * 240) * 60; // frames to disperse (4–8 min)
+        this.linger    = (2  + Math.random() * 4)  * 60; // frames to hold (2–6 s)
+        this.disperseF = (4  + Math.random() * 6)  * 60; // frames to disperse (4–10 s)
       }
 
       step() {
@@ -885,24 +884,21 @@
       }
     }
 
-    function rafContrails(ts) {
+    function rafContrails() {
       cCx.clearRect(0, 0, cCv.width, cCv.height);
-      if (ts - _lastSpawn > _spawnGap) {
-        _contrails.push(new Aircraft());
-        _lastSpawn = ts;
-      }
+      // Remove finished contrails and immediately replenish to target count
       for (let i = _contrails.length - 1; i >= 0; i--) {
         _contrails[i].step();
         _contrails[i].draw(cCx);
         if (_contrails[i].phase === 'done') _contrails.splice(i, 1);
       }
+      // Loop: keep _TARGET_CONTRAILS active at all times
+      while (_contrails.length < _TARGET_CONTRAILS) {
+        _contrails.push(new Aircraft());
+      }
       requestAnimationFrame(rafContrails);
     }
 
-    // Seed and start — two aircraft already mid-flight so trails are visible immediately
-    _contrails.push(new Aircraft(0.30));
-    _contrails.push(new Aircraft(0.65));
-    setTimeout(() => _contrails.push(new Aircraft()), 15000 + Math.random() * 20000);
     requestAnimationFrame(rafContrails);
 
     // ── Avionics HUD update ──────────────────────────────────
