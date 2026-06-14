@@ -505,6 +505,130 @@
       opacity: 0.5;
     }
 
+    /* ─── Weather ─── */
+    #weather {
+      padding: 1.75rem 3.5rem 2.5rem;
+      border-top: 1px solid rgba(201,168,76,.1);
+      opacity: 0;
+      animation: fadeUp 1s cubic-bezier(.16,1,.3,1) 1.1s forwards;
+    }
+    .weather-hd {
+      max-width: 960px;
+      margin: 0 auto 1rem;
+      font-size: 0.52rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      opacity: 0.7;
+    }
+    .weather-search {
+      position: relative;
+      max-width: 960px;
+      margin: 0 auto 1.5rem;
+    }
+    #location-input {
+      width: 100%;
+      background: rgba(4,7,20,.45);
+      border: 1px solid var(--gold-dim);
+      color: var(--cream);
+      font-family: 'Space Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      padding: 0.65rem 1rem;
+      outline: none;
+      -webkit-appearance: none;
+      appearance: none;
+      transition: border-color .2s, background .2s;
+    }
+    #location-input::placeholder { color: var(--cream-faint); }
+    #location-input:focus {
+      border-color: rgba(201,168,76,.55);
+      background: rgba(4,7,20,.65);
+    }
+    #location-results {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      background: rgba(4,7,20,.97);
+      border: 1px solid var(--gold-dim);
+      border-top: none;
+      list-style: none;
+      z-index: 20;
+      max-height: 240px;
+      overflow-y: auto;
+    }
+    #location-results li {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding: 0.55rem 1rem;
+      cursor: pointer;
+      border-bottom: 1px solid rgba(201,168,76,.06);
+      transition: background .15s;
+    }
+    #location-results li:last-child { border-bottom: none; }
+    #location-results li:hover { background: rgba(201,168,76,.08); }
+    .loc-name { font-size: 0.72rem; color: var(--cream); }
+    .loc-sub {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.5rem;
+      color: var(--cream-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .weather-stats {
+      display: flex;
+      gap: 0;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    .wstat {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0 1rem;
+      border-right: 1px solid rgba(201,168,76,.08);
+    }
+    .wstat:last-child { border-right: none; }
+    .wstat-label {
+      font-size: 0.52rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--gold);
+      text-shadow: 0 1px 8px rgba(0,0,0,.6);
+    }
+    .wstat-val {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 1.65rem;
+      font-weight: 300;
+      color: var(--cream);
+      line-height: 1;
+      text-shadow: 0 1px 10px rgba(0,0,0,.35);
+    }
+    .wstat-cond {
+      font-size: 0.95rem;
+      font-style: italic;
+      text-align: center;
+    }
+    .wstat-sub {
+      font-size: 0.48rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: rgba(242,232,213,.7);
+      text-shadow: 0 1px 6px rgba(0,0,0,.6);
+    }
+    .weather-loading, .weather-error {
+      font-family: 'Space Mono', monospace;
+      font-size: 0.58rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--cream-faint);
+      text-align: center;
+      padding: 0.75rem;
+      width: 100%;
+    }
+
     /* ─── Responsive ─── */
     @media (max-width: 680px) {
       header, footer { padding: 1.5rem; }
@@ -523,6 +647,9 @@
       .time-block.set  { align-items: center; text-align: center; }
       .stats { gap: 0; overflow-x: auto; }
       .stat { min-width: 90px; }
+      #weather { padding: 1.5rem; }
+      .weather-stats { overflow-x: auto; }
+      .wstat { min-width: 80px; }
     }
   </style>
 </head>
@@ -559,7 +686,7 @@
       <div class="wordmark">Lancashire Light</div>
       <div class="coords">
         <span class="coord-pip"></span>
-        53.76°N &nbsp;·&nbsp; 2.70°W
+        <span id="coord-text">53.76°N &nbsp;·&nbsp; 2.70°W</span>
       </div>
     </header>
 
@@ -627,15 +754,24 @@
       </div>
     </main>
 
+    <section id="weather">
+      <div class="weather-hd">Current Conditions</div>
+      <div class="weather-search">
+        <input id="location-input" type="text" placeholder="Search location…" autocomplete="off" spellcheck="false">
+        <ul id="location-results" hidden></ul>
+      </div>
+      <div id="weather-data" class="weather-stats"></div>
+    </section>
+
     <footer>
-      <div class="footer-loc">Lancashire · England · United Kingdom</div>
+      <div class="footer-loc"><span id="location-label">Lancashire · England · United Kingdom</span></div>
       <div class="live-pill"><span class="live-dot"></span> Live</div>
     </footer>
   </div>
 
   <script src="https://unpkg.com/suncalc@1.9.0/suncalc.js"></script>
   <script>
-    const LAT = 53.7632, LNG = -2.7044;
+    let LAT = 53.7632, LNG = -2.7044;
 
     // ── Helpers ──────────────────────────────────────────────
     function fmt12(d) {
@@ -990,6 +1126,141 @@
         now.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
       updateHUD();
     }, 1000);
+
+    // ── Weather & location ────────────────────────────────────
+    const WMO = {
+      0:'Clear sky', 1:'Mainly clear', 2:'Partly cloudy', 3:'Overcast',
+      45:'Fog', 48:'Icy fog',
+      51:'Light drizzle', 53:'Drizzle', 55:'Heavy drizzle',
+      56:'Freezing drizzle', 57:'Heavy freezing drizzle',
+      61:'Light rain', 63:'Rain', 65:'Heavy rain',
+      66:'Freezing rain', 67:'Heavy freezing rain',
+      71:'Light snow', 73:'Snow', 75:'Heavy snow', 77:'Snow grains',
+      80:'Light showers', 81:'Showers', 82:'Heavy showers',
+      85:'Snow showers', 86:'Heavy snow showers',
+      95:'Thunderstorm', 96:'Thunderstorm & hail', 99:'Severe thunderstorm'
+    };
+
+    function degs2compass(d) {
+      return ['N','NE','E','SE','S','SW','W','NW'][Math.round(d / 45) % 8];
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    async function fetchWeather(lat, lng) {
+      const wd = document.getElementById('weather-data');
+      wd.innerHTML = '<div class="weather-loading">Fetching conditions…</div>';
+      try {
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}`
+          + `&current=temperature_2m,apparent_temperature,relative_humidity_2m,`
+          + `weather_code,cloud_cover,wind_speed_10m,wind_direction_10m`
+          + `&wind_speed_unit=mph&timezone=auto`;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error();
+        const data = await resp.json();
+        renderWeather(data.current);
+      } catch {
+        wd.innerHTML = '<div class="weather-error">Weather unavailable</div>';
+      }
+    }
+
+    function renderWeather(c) {
+      const cond = WMO[c.weather_code] ?? 'Unknown';
+      document.getElementById('weather-data').innerHTML = `
+        <div class="wstat">
+          <div class="wstat-label">Temperature</div>
+          <div class="wstat-val">${Math.round(c.temperature_2m)}&deg;</div>
+          <div class="wstat-sub">Celsius</div>
+        </div>
+        <div class="wstat">
+          <div class="wstat-label">Feels Like</div>
+          <div class="wstat-val">${Math.round(c.apparent_temperature)}&deg;</div>
+          <div class="wstat-sub">Celsius</div>
+        </div>
+        <div class="wstat">
+          <div class="wstat-label">Condition</div>
+          <div class="wstat-val wstat-cond">${esc(cond)}</div>
+          <div class="wstat-sub">Current</div>
+        </div>
+        <div class="wstat">
+          <div class="wstat-label">Wind</div>
+          <div class="wstat-val">${Math.round(c.wind_speed_10m)}</div>
+          <div class="wstat-sub">${degs2compass(c.wind_direction_10m)} &middot; mph</div>
+        </div>
+        <div class="wstat">
+          <div class="wstat-label">Humidity</div>
+          <div class="wstat-val">${c.relative_humidity_2m}%</div>
+          <div class="wstat-sub">Relative</div>
+        </div>
+        <div class="wstat">
+          <div class="wstat-label">Cloud Cover</div>
+          <div class="wstat-val">${c.cloud_cover}%</div>
+          <div class="wstat-sub">Sky fraction</div>
+        </div>`;
+    }
+
+    let _searchResults = [], _searchTimer = null;
+
+    async function searchLocations(query) {
+      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=6&language=en&format=json`;
+      const resp = await fetch(url);
+      const data = await resp.json();
+      return data.results || [];
+    }
+
+    function fmtCoords(lat, lng) {
+      return `${Math.abs(lat).toFixed(2)}°${lat>=0?'N':'S'} · ${Math.abs(lng).toFixed(2)}°${lng<0?'W':'E'}`;
+    }
+
+    function setLocation(lat, lng, displayName, coordsStr) {
+      LAT = lat; LNG = lng;
+      document.getElementById('coord-text').textContent = coordsStr;
+      document.getElementById('location-label').textContent = displayName;
+      document.getElementById('location-results').hidden = true;
+      document.getElementById('location-input').value = '';
+      update();
+      fetchWeather(lat, lng);
+    }
+
+    const _locInput   = document.getElementById('location-input');
+    const _locResults = document.getElementById('location-results');
+
+    _locInput.addEventListener('input', () => {
+      clearTimeout(_searchTimer);
+      const q = _locInput.value.trim();
+      if (q.length < 2) { _locResults.hidden = true; return; }
+      _searchTimer = setTimeout(async () => {
+        try {
+          _searchResults = await searchLocations(q);
+          if (!_searchResults.length) { _locResults.hidden = true; return; }
+          _locResults.innerHTML = _searchResults.map((loc, i) => {
+            const sub = [loc.admin1, loc.country].filter(Boolean).join(', ');
+            return `<li data-i="${i}"><span class="loc-name">${esc(loc.name)}</span>`
+              + `<span class="loc-sub">${esc(sub)}</span></li>`;
+          }).join('');
+          _locResults.hidden = false;
+        } catch { _locResults.hidden = true; }
+      }, 300);
+    });
+
+    _locResults.addEventListener('click', e => {
+      const li = e.target.closest('li');
+      if (!li) return;
+      const loc = _searchResults[parseInt(li.dataset.i)];
+      if (!loc) return;
+      const name = [loc.name, loc.admin1, loc.country].filter(Boolean).join(' · ');
+      setLocation(loc.latitude, loc.longitude, name, fmtCoords(loc.latitude, loc.longitude));
+    });
+
+    document.addEventListener('click', e => {
+      if (!e.target.closest('.weather-search')) _locResults.hidden = true;
+    });
+
+    fetchWeather(LAT, LNG);
   </script>
 </body>
 </html>
